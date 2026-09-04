@@ -1,4 +1,20 @@
 cmake_minimum_required(VERSION 3.6)
+
+# Set the toolchain file before project() - real, previously-latent bug
+# found for real porting Open-PS2-Loader: this repo's own CI never
+# passed -DCMAKE_TOOLCHAIN_FILE explicitly and had no default here
+# either, so the published release silently configured against the HOST
+# compiler (x86 COFF objects in the shipped .a, useless for EE linking)
+# instead of the real mips64r5900el-ps2-elf cross-compiler. Same real
+# pattern already used correctly by ps2gl/ps2stuff's own CMakeLists.txt.
+if(NOT CMAKE_TOOLCHAIN_FILE)
+    if(DEFINED ENV{PS2DEV})
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{PS2DEV}/share/ps2dev.cmake" CACHE FILEPATH "Toolchain file")
+    else()
+        message(FATAL_ERROR "PS2DEV environment variable is not set. Please set it to your PS2DEV installation path.")
+    endif()
+endif()
+
 project(vorbis)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
