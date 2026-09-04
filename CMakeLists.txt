@@ -88,3 +88,12 @@ install(
     DESTINATION
     ${CMAKE_INSTALL_LIBDIR}/pkgconfig
 )
+
+# package.yaml - so ps2build's own package tooling can see this package
+# like any other installed under packages/<tier>/<name>, even though
+# it's built by CMake rather than "ps2build install". Same pattern as
+# ps2/libjpeg-turbo.
+install(
+    FILES ${CMAKE_SOURCE_DIR}/package.yaml
+    DESTINATION .
+)
