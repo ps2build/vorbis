@@ -282,7 +282,15 @@ long _book_maptype1_quantvals(long dim, long entries){
    generated algorithmically (each column of the vector counts through
    the values in the quant vector). in map type 2, all the values came
    in in an explicit list.  Both value lists must be unpacked */
-void _book_unquantize(float *r,const dec_codebook *b,ogg_int32_t n,
+/* PS2 EE port fix: this definition's 3rd parameter was declared
+   ogg_int32_t here but plain int in the real, widely-included
+   codebook.h - int32_t/int are the same width but not the same type
+   on every real platform, and here (mips64r5900el-ps2-elf's own
+   stdint.h) they genuinely differ, so this is a real conflicting-
+   redeclaration compile error, not a portability nicety. Matched to
+   the header's own int (n is only ever used as a loop bound/index
+   inside, so this is a type-only fix, no behavior change). */
+void _book_unquantize(float *r,const dec_codebook *b,int n,
                       ogg_int64_t *sparsemap){
   ogg_int32_t i,j,k;
   if(b->maptype==1 || b->maptype==2){
