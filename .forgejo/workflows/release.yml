@@ -24,8 +24,8 @@ jobs:
         shell: pwsh
         run: |
           $release = Invoke-RestMethod -Uri "https://git.techwritescode.dev/api/v1/repos/ps2/ogg/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -like 'ogg-*-windows-x64.zip' } | Select-Object -First 1
-          if (-not $asset) { throw "no windows-x64 asset on the latest ogg release" }
+          $asset = $release.assets | Where-Object { $_.name -like 'ogg-*.zip' } | Select-Object -First 1
+          if (-not $asset) { throw "no ogg zip asset on the latest ogg release" }
           $zipPath = Join-Path $env:TEMP $asset.name
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
           $dest = "C:\ps2dev-consumer\packages\world\ogg"
@@ -50,17 +50,19 @@ jobs:
         shell: pwsh
         run: cmake --install build
 
+      # Unsuffixed, matching sdk-core/sdk-world/audsrv - this is
+      # cross-compiled PS2 MIPS content, not a host binary.
       - name: Package
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}"
-          Compress-Archive -Path C:\ps2dev-consumer\packages\world\vorbis\* -DestinationPath "vorbis-$version-windows-x64.zip"
+          Compress-Archive -Path C:\ps2dev-consumer\packages\world\vorbis\* -DestinationPath "vorbis-$version.zip"
 
       - name: Publish release
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}"
-          fj release create $version -t $version -a "vorbis-$version-windows-x64.zip" -r ps2/vorbis
+          fj release create $version -t $version -a "vorbis-$version.zip" -r ps2/vorbis
 
       - name: Clean up
         if: always()

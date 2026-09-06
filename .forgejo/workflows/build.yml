@@ -26,8 +26,8 @@ jobs:
         shell: pwsh
         run: |
           $release = Invoke-RestMethod -Uri "https://git.techwritescode.dev/api/v1/repos/ps2/ogg/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -like 'ogg-*-windows-x64.zip' } | Select-Object -First 1
-          if (-not $asset) { throw "no windows-x64 asset on the latest ogg release" }
+          $asset = $release.assets | Where-Object { $_.name -like 'ogg-*.zip' } | Select-Object -First 1
+          if (-not $asset) { throw "no ogg zip asset on the latest ogg release" }
           $zipPath = Join-Path $env:TEMP $asset.name
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
           $dest = "C:\ps2dev-consumer\packages\world\ogg"
