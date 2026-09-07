@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.6)
 # pattern already used correctly by ps2gl/ps2stuff's own CMakeLists.txt.
 if(NOT CMAKE_TOOLCHAIN_FILE)
     if(DEFINED ENV{PS2DEV})
-        set(CMAKE_TOOLCHAIN_FILE "$ENV{PS2DEV}/share/ps2dev.cmake" CACHE FILEPATH "Toolchain file")
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{PS2DEV}/cmake/ps2dev.cmake" CACHE FILEPATH "Toolchain file")
     else()
         message(FATAL_ERROR "PS2DEV environment variable is not set. Please set it to your PS2DEV installation path.")
     endif()
