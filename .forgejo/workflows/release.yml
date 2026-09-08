@@ -8,46 +8,55 @@ on:
 
 jobs:
   release:
-    runs-on: windows
+    runs-on: docker
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clean C:\ps2dev-consumer
-        shell: pwsh
-        run: Remove-Item -Recurse -Force C:\ps2dev-consumer -ErrorAction SilentlyContinue
+      - uses: https://git.techwritescode.dev/techwritescode/setup-forgejo@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup cmake
+        uses: https://git.techwritescode.dev/techwritescode/setup-cmake@master
 
       - uses: https://git.techwritescode.dev/ps2/setup-sdk@master
         with:
-          ps2dev: C:\ps2dev-consumer
+          ps2dev: /opt/ps2dev
+          components: toolchain,cmake,ninja,sdk-core
 
       - name: Fetch ogg package
-        shell: pwsh
         run: |
-          $release = Invoke-RestMethod -Uri "https://git.techwritescode.dev/api/v1/repos/ps2/ogg/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -like 'ogg-*.zip' } | Select-Object -First 1
-          if (-not $asset) { throw "no ogg zip asset on the latest ogg release" }
-          $zipPath = Join-Path $env:TEMP $asset.name
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
-          $dest = "C:\ps2dev-consumer\packages\world\ogg"
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          Expand-Archive -Path $zipPath -DestinationPath $dest -Force
-          Remove-Item $zipPath -Force
+          release="$(curl -fsSL "https://git.techwritescode.dev/api/v1/repos/ps2/ogg/releases/latest")"
+          asset_url="$(printf '%s' "$release" |
+            jq -r '[.assets[] | select(.name | test("^ogg-.*\\.zip$")) | .browser_download_url][0]')"
+          if [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; then
+            echo "no ogg zip asset found" >&2
+            exit 1
+          fi
+          dest=/opt/ps2dev/packages/world/ogg
+          mkdir -p "$dest"
+          curl -fsSL "$asset_url" -o /tmp/ogg.zip
+          unzip -o -q /tmp/ogg.zip -d "$dest"
+          rm -f /tmp/ogg.zip
 
+      # CMAKE_MAKE_PROGRAM is set explicitly rather than relying on
+      # ninja being on PATH - this runs in a fresh Docker container
+      # each time, so "ps2build update ninja"'s install into
+      # $PS2DEV/tools/ninja is never actually on PATH here.
       - name: Configure with CMake
-        shell: pwsh
+        env:
+          PS2DEV: /opt/ps2dev
         run: |
-          $env:PS2DEV = "C:\ps2dev-consumer"
-          cmake -S . -B build -G Ninja `
-            -DCMAKE_INSTALL_PREFIX=C:\ps2dev-consumer\packages\world\vorbis `
-            -DOGG_INCLUDE_DIR=C:\ps2dev-consumer\packages\world\ogg\include `
-            -DOGG_LIBRARY=C:\ps2dev-consumer\packages\world\ogg\lib\libogg.a
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_MAKE_PROGRAM=/opt/ps2dev/tools/ninja \
+            -DCMAKE_INSTALL_PREFIX=/opt/ps2dev/packages/world/vorbis \
+            -DOGG_INCLUDE_DIR=/opt/ps2dev/packages/world/ogg/include \
+            -DOGG_LIBRARY=/opt/ps2dev/packages/world/ogg/lib/libogg.a
 
       - name: Build
-        shell: pwsh
         run: cmake --build build --target vorbis vorbisenc vorbisfile
 
       - name: Install
-        shell: pwsh
         run: cmake --install build
 
       # Real, unmodified upstream license text, not generated -
@@ -56,26 +65,16 @@ jobs:
       # would ship real Xiph.org-licensed code with no license text at
       # all.
       - name: Bundle license
-        shell: pwsh
-        run: Copy-Item COPYING C:\ps2dev-consumer\packages\world\vorbis\COPYING
+        run: cp COPYING /opt/ps2dev/packages/world/vorbis/COPYING
 
       # Unsuffixed, matching sdk-core/sdk-world/audsrv - this is
       # cross-compiled PS2 MIPS content, not a host binary.
       - name: Package
-        shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
-          Compress-Archive -Path C:\ps2dev-consumer\packages\world\vorbis\* -DestinationPath "vorbis-$version.zip"
+          version="${GITHUB_REF_NAME}"
+          cd /opt/ps2dev/packages/world/vorbis && zip -r "$GITHUB_WORKSPACE/vorbis-$version.zip" .
 
       - name: Publish release
-        shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
-          fj release create $version -t $version -a "vorbis-$version.zip" -r ps2/vorbis
-
-      - name: Clean up
-        if: always()
-        shell: pwsh
-        run: |
-          Remove-Item -Force "vorbis-*.zip" -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+          version="${GITHUB_REF_NAME}"
+          fj release create "$version" -t "$version" -a "vorbis-$version.zip" -r ps2/vorbis
