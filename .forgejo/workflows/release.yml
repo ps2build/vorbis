@@ -68,5 +68,5 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          Remove-Item -Force "vorbis-*-windows-x64.zip" -ErrorAction SilentlyContinue
+          Remove-Item -Force "vorbis-*.zip" -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
