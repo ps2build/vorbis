@@ -50,6 +50,15 @@ jobs:
         shell: pwsh
         run: cmake --install build
 
+      # Real, unmodified upstream license text, not generated -
+      # cmake --install only copies build outputs (include/lib), never
+      # the repo's own root COPYING, so without this the release zip
+      # would ship real Xiph.org-licensed code with no license text at
+      # all.
+      - name: Bundle license
+        shell: pwsh
+        run: Copy-Item COPYING C:\ps2dev-consumer\packages\world\vorbis\COPYING
+
       # Unsuffixed, matching sdk-core/sdk-world/audsrv - this is
       # cross-compiled PS2 MIPS content, not a host binary.
       - name: Package
