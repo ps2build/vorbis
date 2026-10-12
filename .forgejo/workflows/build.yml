@@ -16,26 +16,32 @@ jobs:
       - uses: https://git.techwritescode.dev/ps2/setup-sdk@master
         with:
           ps2dev: /opt/ps2dev
-          components: toolchain,cmake,ninja,sdk-core
+          components: toolchain,cmake,ninja,sdk-core,llvm-toolchain
 
       # world/ogg (Ogg container format) - a real dependency, not part
       # of setup-sdk's own sdk-core/sdk-world fetch, since ogg is its
       # own standalone repo (same reason this step exists at all -
       # world/ogg has no ps2build update command of its own either).
-      - name: Fetch ogg package
+      - name: Fetch ogg packages
         run: |
           release="$(curl -fsSL "https://git.techwritescode.dev/api/v1/repos/ps2/ogg/releases/latest")"
-          asset_url="$(printf '%s' "$release" |
-            jq -r '[.assets[] | select(.name | test("^ogg-.*\\.zip$")) | .browser_download_url][0]')"
-          if [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; then
-            echo "no ogg zip asset found" >&2
-            exit 1
-          fi
-          dest=/opt/ps2dev/packages/world/ogg
-          mkdir -p "$dest"
-          curl -fsSL "$asset_url" -o /tmp/ogg.zip
-          unzip -o -q /tmp/ogg.zip -d "$dest"
-          rm -f /tmp/ogg.zip
+          for set in gcc llvm; do
+            asset_url="$(printf '%s' "$release" |
+              jq -r --arg set "$set" '[.assets[] | select(.name | test("^ogg-.*-" + $set + "\\.zip$")) | .browser_download_url][0]')"
+            if [ "$set" = "gcc" ] && { [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; }; then
+              asset_url="$(printf '%s' "$release" |
+                jq -r '[.assets[] | select(.name | test("^ogg-v[0-9.]+\\.zip$")) | .browser_download_url][0]')"
+            fi
+            if [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; then
+              echo "no $set ogg zip asset found" >&2
+              exit 1
+            fi
+            if [ "$set" = "gcc" ]; then dest=/opt/ps2dev/packages/world/ogg; else dest=/opt/ps2dev/packages-llvm/world/ogg; fi
+            mkdir -p "$dest"
+            curl -fsSL "$asset_url" -o /tmp/ogg.zip
+            unzip -o -q /tmp/ogg.zip -d "$dest"
+            rm -f /tmp/ogg.zip
+          done
 
       # CMAKE_MAKE_PROGRAM is set explicitly rather than relying on
       # ninja being on PATH - this runs in a fresh Docker container
@@ -57,6 +63,23 @@ jobs:
       - name: Install
         run: cmake --install build
 
+      - name: Configure with CMake (llvm)
+        env:
+          PS2DEV: /opt/ps2dev
+        run: |
+          cmake -S . -B build-llvm -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=/opt/ps2dev/cmake/ps2dev_llvm.cmake \
+            -DCMAKE_MAKE_PROGRAM=/opt/ps2dev/tools/ninja \
+            -DCMAKE_INSTALL_PREFIX=/opt/ps2dev/packages-llvm/world/vorbis \
+            -DOGG_INCLUDE_DIR=/opt/ps2dev/packages-llvm/world/ogg/include \
+            -DOGG_LIBRARY=/opt/ps2dev/packages-llvm/world/ogg/lib/libogg.a
+
+      - name: Build (llvm)
+        run: cmake --build build-llvm --target vorbis vorbisenc vorbisfile
+
+      - name: Install (llvm)
+        run: cmake --install build-llvm
+
       - name: Get short SHA
         id: slug
         run: echo "sha8=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
@@ -66,3 +89,9 @@ jobs:
         with:
           name: vorbis-${{ steps.slug.outputs.sha8 }}
           path: /opt/ps2dev/packages/world/vorbis
+
+      - uses: actions/upload-artifact@v3
+        if: success()
+        with:
+          name: vorbis-llvm-${{ steps.slug.outputs.sha8 }}
+          path: /opt/ps2dev/packages-llvm/world/vorbis
