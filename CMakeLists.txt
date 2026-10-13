@@ -15,6 +15,10 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
     endif()
 endif()
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type")
+endif()
+
 project(vorbis)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
