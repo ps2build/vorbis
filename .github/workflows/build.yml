@@ -1,0 +1,68 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ps2build/setup-sdk@main
+        with:
+          ps2dev: /opt/ps2dev
+          components: toolchain,cmake,ninja,sdk-core,llvm-toolchain
+
+      - name: Fetch ogg packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release="$(gh api repos/ps2build/ogg/releases/latest)"
+          for set in gcc llvm; do
+            asset_url="$(printf '%s' "$release" |
+              jq -r --arg set "$set" '[.assets[] | select(.name | test("^ogg-.*-" + $set + "\\.zip$")) | .browser_download_url][0]')"
+            if [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; then
+              echo "no $set ogg zip asset found" >&2
+              exit 1
+            fi
+            if [ "$set" = "gcc" ]; then dest=/opt/ps2dev/packages/world/ogg; else dest=/opt/ps2dev/packages-llvm/world/ogg; fi
+            mkdir -p "$dest"
+            curl -fsSL "$asset_url" -o "$RUNNER_TEMP/ogg.zip"
+            unzip -o -q "$RUNNER_TEMP/ogg.zip" -d "$dest"
+            rm -f "$RUNNER_TEMP/ogg.zip"
+          done
+
+      - name: Configure
+        env:
+          PS2DEV: /opt/ps2dev
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_MAKE_PROGRAM=/opt/ps2dev/tools/ninja \
+            -DCMAKE_INSTALL_PREFIX=/opt/ps2dev/packages/world/vorbis \
+            -DOGG_INCLUDE_DIR=/opt/ps2dev/packages/world/ogg/include \
+            -DOGG_LIBRARY=/opt/ps2dev/packages/world/ogg/lib/libogg.a
+
+      - name: Build
+        run: cmake --build build --target vorbis vorbisenc vorbisfile
+
+      - name: Install
+        run: cmake --install build
+
+      - name: Configure (llvm)
+        env:
+          PS2DEV: /opt/ps2dev
+        run: |
+          cmake -S . -B build-llvm -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=/opt/ps2dev/cmake/ps2dev_llvm.cmake \
+            -DCMAKE_MAKE_PROGRAM=/opt/ps2dev/tools/ninja \
+            -DCMAKE_INSTALL_PREFIX=/opt/ps2dev/packages-llvm/world/vorbis \
+            -DOGG_INCLUDE_DIR=/opt/ps2dev/packages-llvm/world/ogg/include \
+            -DOGG_LIBRARY=/opt/ps2dev/packages-llvm/world/ogg/lib/libogg.a
+
+      - name: Build (llvm)
+        run: cmake --build build-llvm --target vorbis vorbisenc vorbisfile
+
+      - name: Install (llvm)
+        run: cmake --install build-llvm
