@@ -27,10 +27,8 @@ jobs:
               echo "no $set ogg zip asset found" >&2
               exit 1
             fi
-            if [ "$set" = "gcc" ]; then dest=/opt/ps2dev/packages/world/ogg; else dest=/opt/ps2dev/packages-llvm/world/ogg; fi
-            mkdir -p "$dest"
             curl -fsSL "$asset_url" -o "$RUNNER_TEMP/ogg.zip"
-            unzip -o -q "$RUNNER_TEMP/ogg.zip" -d "$dest"
+            unzip -o -q "$RUNNER_TEMP/ogg.zip" -d /opt/ps2dev
             rm -f "$RUNNER_TEMP/ogg.zip"
           done
 
