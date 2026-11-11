@@ -13,6 +13,12 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Require a tag
+        if: github.ref_type != 'tag'
+        run: |
+          echo "Release must run on a v* tag, not $GITHUB_REF" >&2
+          exit 1
+
       - uses: actions/checkout@v4
 
       - uses: ps2build/setup-sdk@main
@@ -32,10 +38,8 @@ jobs:
               echo "no $set ogg zip asset found" >&2
               exit 1
             fi
-            if [ "$set" = "gcc" ]; then dest=/opt/ps2dev/packages/world/ogg; else dest=/opt/ps2dev/packages-llvm/world/ogg; fi
-            mkdir -p "$dest"
             curl -fsSL "$asset_url" -o "$RUNNER_TEMP/ogg.zip"
-            unzip -o -q "$RUNNER_TEMP/ogg.zip" -d "$dest"
+            unzip -o -q "$RUNNER_TEMP/ogg.zip" -d /opt/ps2dev
             rm -f "$RUNNER_TEMP/ogg.zip"
           done
 
@@ -79,8 +83,9 @@ jobs:
 
       - name: Package
         run: |
-          (cd /opt/ps2dev/packages/world/vorbis && zip -qr "$GITHUB_WORKSPACE/vorbis-${GITHUB_REF_NAME}-gcc.zip" .)
-          (cd /opt/ps2dev/packages-llvm/world/vorbis && zip -qr "$GITHUB_WORKSPACE/vorbis-${GITHUB_REF_NAME}-llvm.zip" .)
+          (cd /opt/ps2dev && \
+            zip -qr "$GITHUB_WORKSPACE/vorbis-${GITHUB_REF_NAME}-gcc.zip" packages/world/vorbis && \
+            zip -qr "$GITHUB_WORKSPACE/vorbis-${GITHUB_REF_NAME}-llvm.zip" packages-llvm/world/vorbis)
 
       - name: Publish release
         env:
